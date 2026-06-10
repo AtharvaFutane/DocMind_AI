@@ -1,0 +1,7 @@
+PrepWise AI Mock Interview Assistant Documentation
+==================================================
+
+PrepWise is a separate mock interview platform.
+It uses facial engagement tracking and user dashboards.
+It does NOT use marked.js directly in its CLI.
+This is test_doc2.txt content.

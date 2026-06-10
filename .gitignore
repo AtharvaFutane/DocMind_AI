@@ -1,0 +1,42 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data
+data/faiss_index/*.faiss
+data/faiss_index/*.json
+data/logs/*.log
+data/.scrapy_cache/
+
+# Docker
+postgres_data/
+redis_data/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db

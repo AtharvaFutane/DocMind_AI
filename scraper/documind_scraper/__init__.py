@@ -1,0 +1,1 @@
+# DocuMind Scrapy project

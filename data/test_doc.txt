@@ -1,0 +1,22 @@
+DocuMind AI Q&A Assistant Documentation
+=======================================
+
+DocuMind is an advanced AI-powered assistant designed to query technical documentation.
+It supports ingestion of PDF, DOCX, TXT, and Markdown files.
+
+Key Features:
+- Provider-agnostic API support (OpenAI, Google Gemini, Ollama, etc.)
+- FAISS vector database for high-performance semantic search
+- Redis-based response caching to reduce LLM API usage and costs
+- High-fidelity PDF extraction using PyPDF
+- Premium Glassmorphism web interface
+
+How it works:
+1. When a user uploads a document, DocuMind parses its content and splits it into semantic chunks.
+2. For each chunk, DocuMind generates a vector embedding using the configured embedding model (e.g. gemini-embedding-001 with 768 dimensions).
+3. The embeddings are stored in a FAISS index on disk, and references/text are saved in PostgreSQL.
+4. When a user asks a question, the question is embedded and the most relevant chunks are retrieved from FAISS.
+5. A context-aware prompt is built and sent to the LLM (e.g. gemini-1.5-flash) to generate a cited response.
+
+Troubleshooting Dimension Mismatches:
+If the embedding model is changed (e.g., from OpenAI's 1536-dimension model to Gemini's 768-dimension model), the FAISS index will detect the mismatch on startup, clear the index, and truncate the SQL tables to start fresh.
