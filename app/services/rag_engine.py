@@ -14,7 +14,7 @@ SYSTEM_PROMPT = """You are DocuMind, a friendly and highly knowledgeable technic
 You answer developer questions using the provided documentation context below.
 
 Rules:
-1. Answer based strictly on the provided context. If the context doesn't contain the answer, say: "I couldn't find this in the documentation. Try searching the docs directly."
+1. Prioritize answering based on the provided context. If the context does not contain the answer or is insufficient, you may answer using your general technical/programming knowledge. However, if you use general knowledge, prepend a brief note at the very beginning of your answer saying: *"[Note: This response is based on general knowledge, as the specific details were not found in the uploaded documentation.]"*
 2. Cite your sources using only the readable document title/filename (e.g. "according to test_doc.txt") in your response text.
 3. Do NOT print raw URL paths or upload paths (like "upload/abc-123/...") in your response text.
 4. Do NOT include a "Sources" section or footer at the end of your text response (the frontend displays clean citation badges below the message bubble automatically).
@@ -112,37 +112,26 @@ Please answer this question using only the documentation context above."""
             top_k=settings.top_k_results,
         )
 
-        if not retrieved_all:
-            logger.info("No chunks exist in vector store. Index is empty.")
-            return {
-                "answer": "The documentation hasn't been indexed yet. Please trigger a crawl first.",
-                "sources": [],
-                "from_cache": False,
-                "chunks_retrieved": 0,
-            }
-
         # Filter by similarity threshold
-        retrieved = [
-            (meta, score) for meta, score in retrieved_all
-            if score >= settings.similarity_threshold
-        ]
-
-        logger.info(
-            f"RAG Retrieval: retrieved {len(retrieved)}/{len(retrieved_all)} chunks "
-            f"above similarity_threshold={settings.similarity_threshold}."
-        )
-
-        if not retrieved:
-            logger.info("No matching chunks found above the similarity threshold.")
-            return {
-                "answer": "I couldn't find any sufficiently relevant information in the documentation to answer your question.",
-                "sources": [],
-                "from_cache": False,
-                "chunks_retrieved": 0,
-            }
+        retrieved = []
+        if retrieved_all:
+            retrieved = [
+                (meta, score) for meta, score in retrieved_all
+                if score >= settings.similarity_threshold
+            ]
+            logger.info(
+                f"RAG Retrieval: retrieved {len(retrieved)}/{len(retrieved_all)} chunks "
+                f"above similarity_threshold={settings.similarity_threshold}."
+            )
+        else:
+            logger.info("No chunks exist in vector store. Index is empty.")
 
         # Step 3: Build prompt
-        context_block = self._build_context_block(retrieved)
+        if retrieved:
+            context_block = self._build_context_block(retrieved)
+        else:
+            context_block = "No matching documentation found. Please answer using general technical knowledge."
+        
         user_prompt = self._build_user_prompt(question, context_block)
 
         # Step 4: Build message history (for multi-turn conversations)
