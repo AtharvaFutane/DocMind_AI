@@ -89,3 +89,14 @@ class TestTextChunker:
         chunker = TextChunker(chunk_size=256, chunk_overlap=64)
         assert chunker.chunk_size == 256
         assert chunker.chunk_overlap == 64
+
+    def test_paragraph_sentence_splitting(self):
+        """Test that a single long paragraph exceeding chunk_size is split on sentences."""
+        chunker = TextChunker(chunk_size=10, chunk_overlap=2)
+        # This paragraph is around 25 tokens (100 chars), which exceeds chunk_size of 10.
+        long_paragraph = "Sentence one is here. Sentence two is longer. Sentence three is also here."
+        chunks = chunker.chunk_text(long_paragraph, "http://example.com", "Long Paragraph")
+        assert len(chunks) > 1
+        for chunk in chunks:
+            assert chunk.token_estimate <= 10
+

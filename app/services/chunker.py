@@ -43,6 +43,12 @@ class TextChunker:
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         return paragraphs
 
+    def _split_paragraph_into_sentences(self, paragraph: str) -> List[str]:
+        """Split a paragraph into sentences using a simple regular expression."""
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+        return [s.strip() for s in sentences if s.strip()]
+
     def chunk_text(
         self, text: str, page_url: str, page_title: str
     ) -> List[TextChunk]:
@@ -65,35 +71,52 @@ class TextChunker:
         char_offset = 0
         chunk_index = 0
 
+        def flush_current_chunk():
+            nonlocal chunk_index, current_chunk_parts, current_tokens, char_offset
+            chunk_text = "\n\n".join(current_chunk_parts)
+            char_end = char_offset + len(chunk_text)
+            chunks.append(
+                TextChunk(
+                    text=chunk_text,
+                    page_url=page_url,
+                    page_title=page_title,
+                    chunk_index=chunk_index,
+                    char_start=char_offset,
+                    char_end=char_end,
+                    token_estimate=current_tokens,
+                )
+            )
+            chunk_index += 1
+
+            # Overlap: keep last N chars from previous chunk
+            overlap_chars = self.chunk_overlap * self.chars_per_token
+            overlap_text = chunk_text[-overlap_chars:] if len(chunk_text) > overlap_chars else chunk_text
+            current_chunk_parts = [overlap_text]
+            current_tokens = self._estimate_tokens(overlap_text)
+            char_offset = char_end
+
         for para in paragraphs:
             para_tokens = self._estimate_tokens(para)
 
-            # If adding this paragraph exceeds chunk_size, flush current chunk
-            if current_tokens + para_tokens > self.chunk_size and current_chunk_parts:
-                chunk_text = "\n\n".join(current_chunk_parts)
-                char_end = char_offset + len(chunk_text)
-                chunks.append(
-                    TextChunk(
-                        text=chunk_text,
-                        page_url=page_url,
-                        page_title=page_title,
-                        chunk_index=chunk_index,
-                        char_start=char_offset,
-                        char_end=char_end,
-                        token_estimate=current_tokens,
-                    )
-                )
-                chunk_index += 1
-
-                # Overlap: keep last N chars from previous chunk
-                overlap_chars = self.chunk_overlap * self.chars_per_token
-                overlap_text = chunk_text[-overlap_chars:] if len(chunk_text) > overlap_chars else chunk_text
-                current_chunk_parts = [overlap_text]
-                current_tokens = self._estimate_tokens(overlap_text)
-                char_offset = char_end
-
-            current_chunk_parts.append(para)
-            current_tokens += para_tokens
+            # If adding this paragraph exceeds chunk_size, decide how to handle it
+            if current_tokens + para_tokens > self.chunk_size:
+                # If paragraph itself is too large, split it into sentences first
+                if para_tokens > self.chunk_size:
+                    sentences = self._split_paragraph_into_sentences(para)
+                    for sentence in sentences:
+                        sentence_tokens = self._estimate_tokens(sentence)
+                        if current_tokens + sentence_tokens > self.chunk_size and current_chunk_parts:
+                            flush_current_chunk()
+                        current_chunk_parts.append(sentence)
+                        current_tokens += sentence_tokens
+                else:
+                    if current_chunk_parts:
+                        flush_current_chunk()
+                    current_chunk_parts.append(para)
+                    current_tokens += para_tokens
+            else:
+                current_chunk_parts.append(para)
+                current_tokens += para_tokens
 
         # Flush remaining content
         if current_chunk_parts:
