@@ -164,6 +164,5 @@ documind/
 | ORM | SQLAlchemy 2.0 (async) |
 | Containerization | Docker Compose |
 
-## 📝 License
-
-MIT
+## Author
+Atharva N. Futane
