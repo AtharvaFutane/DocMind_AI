@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import logging
 import openai
 from app.config import get_settings
 from app.services.embedder import EmbeddingService
@@ -6,6 +7,7 @@ from app.services.vector_store import FAISSVectorStore, VectorMetadata
 from app.services.cache import ResponseCache
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """You are DocuMind, a friendly and highly knowledgeable technical documentation assistant.
@@ -95,21 +97,45 @@ Please answer this question using only the documentation context above."""
         cache_key = f"rag:{question}"
         cached = await self.cache.get(cache_key)
         if cached:
+            logger.info(f"RAG cache hit for question: '{question[:40]}...'")
             cached["from_cache"] = True
             return cached
+
+        logger.info(f"RAG cache miss. Running retrieval for: '{question[:40]}...'")
 
         # Step 1: Embed the question
         question_embedding = await self.embedder.embed_single(question)
 
         # Step 2: Retrieve top-k chunks
-        retrieved = self.vector_store.search(
+        retrieved_all = self.vector_store.search(
             query_embedding=question_embedding,
             top_k=settings.top_k_results,
         )
 
-        if not retrieved:
+        if not retrieved_all:
+            logger.info("No chunks exist in vector store. Index is empty.")
             return {
                 "answer": "The documentation hasn't been indexed yet. Please trigger a crawl first.",
+                "sources": [],
+                "from_cache": False,
+                "chunks_retrieved": 0,
+            }
+
+        # Filter by similarity threshold
+        retrieved = [
+            (meta, score) for meta, score in retrieved_all
+            if score >= settings.similarity_threshold
+        ]
+
+        logger.info(
+            f"RAG Retrieval: retrieved {len(retrieved)}/{len(retrieved_all)} chunks "
+            f"above similarity_threshold={settings.similarity_threshold}."
+        )
+
+        if not retrieved:
+            logger.info("No matching chunks found above the similarity threshold.")
+            return {
+                "answer": "I couldn't find any sufficiently relevant information in the documentation to answer your question.",
                 "sources": [],
                 "from_cache": False,
                 "chunks_retrieved": 0,
@@ -125,6 +151,8 @@ Please answer this question using only the documentation context above."""
             messages.extend(conversation_history[-6:])  # Last 3 turns for context
         messages.append({"role": "user", "content": user_prompt})
 
+        logger.info(f"Sending prompt to LLM ({settings.api_chat_model})...")
+
         # Step 5: Call GPT-4o
         response = await self.llm_client.chat.completions.create(
             model=settings.api_chat_model,
@@ -134,6 +162,7 @@ Please answer this question using only the documentation context above."""
         )
 
         answer_text = response.choices[0].message.content
+        logger.info("LLM response generated successfully.")
 
         # Step 6: Extract sources
         sources = [
