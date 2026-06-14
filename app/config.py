@@ -27,6 +27,9 @@ class Settings(BaseSettings):
             # Ensure we use asyncpg driver
             if url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            # asyncpg expects ssl=require instead of sslmode=require
+            if "sslmode=require" in url:
+                url = url.replace("sslmode=require", "ssl=require")
             return url
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
