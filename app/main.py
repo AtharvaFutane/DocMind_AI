@@ -22,6 +22,21 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
     # Startup
+    db_url = settings.database_url
+    masked_url = db_url
+    if "@" in db_url:
+        parts = db_url.split("@", 1)
+        prefix = parts[0]
+        suffix = parts[1]
+        if ":" in prefix:
+            prefix_parts = prefix.split(":", 2)
+            if len(prefix_parts) > 2:
+                masked_url = f"{prefix_parts[0]}:{prefix_parts[1]}:***@{suffix}"
+            else:
+                masked_url = f"{prefix_parts[0]}:***@{suffix}"
+        else:
+            masked_url = f"{prefix}:***@{suffix}"
+    print(f"Startup: Connecting to database at {masked_url}")
     await init_db()
 
     redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
